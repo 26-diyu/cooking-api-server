@@ -23,7 +23,7 @@ def extract_frames_by_timestamps(video_url, timestamps_sec, key_frame_output_dir
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(video_url, download=False)
         stream_url = info['url']
-        video_title = info.get('title', 'video')
+        video_title = info.get('description', 'video')
 
     # Open the video stream with OpenCV
     cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)

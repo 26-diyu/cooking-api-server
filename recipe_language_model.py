@@ -50,12 +50,12 @@ class RecipeLLM:
             counter += 1
 
         if response is None:
-            return RecipeContent(title="", steps=[])
+            return RecipeContent(description="", steps=[])
 
         print(response)
-        recipe_content = RecipeContent(title=response['description'], steps=[])
+        recipe_content = RecipeContent(description=response['description'], steps=[])
         print("KEY STEPS")
-        output_dir = f'data/{transcript.get("video_id")}'
+        output_dir = f'data/{transcript.get("video_id")}/key-frames'
         timestamps = []
         for timestamp_description in response["steps"]:
             try:

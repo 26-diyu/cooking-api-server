@@ -7,7 +7,7 @@ class RecipeStep(SQLModel):
     image_url: str | None = None  # Optional image URL for the step
 
 class RecipeContent(SQLModel):
-    title: str | None = None
+    description: str | None = None
     steps: list[RecipeStep] = Field(default=[])
 
 class IngredientContent(SQLModel):

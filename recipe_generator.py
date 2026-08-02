@@ -44,5 +44,6 @@ class RecipeGenerator:
         print("response_payload:", response_payload)
         recipe_conversation_id = self.relational_database.insert_recipe_conversation(username, response_payload)
         print("recipe_conversation_id:", recipe_conversation_id)
+        self.youtube_util.download_key_frames(recipe_content, video_url)
         return response_payload
 
