@@ -4,7 +4,8 @@ from typing import Optional
 from sqlmodel import Field, SQLModel, Session, create_engine, select, Column, JSON
 from urllib.parse import quote_plus
 
-from data_model import Messages, Transcript
+from data_model import Messages, Transcript, TextMessage, TextContent
+
 
 class UserSession(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -13,12 +14,13 @@ class UserSession(SQLModel, table=True):
     created_at: float = Field(default_factory=lambda: time.time())
     expiry: int = Field(default=86400)
 
-class TranscriptSQLModel(SQLModel, table=True):
+class VideoTranscript(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     transcript: Optional[Transcript] = Field(default=None, sa_column=Column(JSON))
 
-class MessagesSQLModel(SQLModel, table=True):
+class RecipeConversation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    title: Optional[str] = Field(default="Recipe Conversation")
     username: Optional[str] = Field(default="")
     messages: Optional[Messages] = Field(default=None, sa_column=Column(JSON))
 
@@ -66,7 +68,7 @@ class RelationalDatabase:
         return -1, -1
 
     def insert_transcript(self, transcript):
-        transcript_sqlmodel = TranscriptSQLModel(transcript=transcript.model_dump())
+        transcript_sqlmodel = VideoTranscript(transcript=transcript.model_dump())
         try:
             with Session(self.engine) as session:
                 session.add(transcript_sqlmodel)
@@ -81,7 +83,7 @@ class RelationalDatabase:
 
     def get_transcript(self, video_id):
         with Session(self.engine) as session:
-            statement = select(TranscriptSQLModel).where(TranscriptSQLModel.transcript["video_id"].as_string() == video_id)
+            statement = select(VideoTranscript).where(VideoTranscript.transcript["video_id"].as_string() == video_id)
             results = session.exec(statement).all()
             for transcript in results:
                 print(f"{transcript.id}: {transcript.transcript}")
@@ -89,15 +91,62 @@ class RelationalDatabase:
         return None
 
     def insert_recipe_conversation(self, username, messages):
-        messages_sqlmodel = MessagesSQLModel(username=username, messages=messages.model_dump())
+        recipe_conversation = RecipeConversation(username=username, messages=messages.model_dump())
         try:
             with Session(self.engine) as session:
-                session.add(messages_sqlmodel)
+                session.add(recipe_conversation)
                 session.commit()
                 # Refresh to populate auto-generated fields like `id` from Postgres
-                session.refresh(messages_sqlmodel)
-                print(f"Created Transcript ID: {messages_sqlmodel.id}")
-                return messages_sqlmodel.id
+                session.refresh(recipe_conversation)
+                print(f"Created Recipe Conversation ID: {recipe_conversation.id}")
+                return recipe_conversation.id
         except Exception as e:
             print("Failed to insert recipe conversation:", e)
             return -1
+
+    def get_recipe_conversation_messages(self, username:str, recipe_conversation_id:int):
+        with Session(self.engine) as session:
+            statement = select(RecipeConversation).where(
+                                    RecipeConversation.username == username,
+                                                RecipeConversation.id == recipe_conversation_id)
+            results = session.exec(statement).all()
+            for conversation in results:
+                print(f"{conversation.id}: {conversation.messages}")
+                return conversation.messages
+        return Messages(messages=[])
+
+    def add_recipe_conversation(self, username:str, recipe_conversation_id:int, new_messages:Messages):
+        messages = self.get_recipe_conversation_messages(username, recipe_conversation_id)
+        all_messages = messages
+        for message in new_messages.messages:
+            all_messages["messages"].append(message.model_dump())
+        with Session(self.engine) as session:
+            statement = select(RecipeConversation).where(
+                            RecipeConversation.username == username,
+                            RecipeConversation.id == recipe_conversation_id
+                            )
+            recipe_conversation = session.exec(statement).first()
+            if recipe_conversation:
+                recipe_conversation.messages = all_messages
+                session.add(recipe_conversation)
+                session.commit()
+                session.refresh(recipe_conversation)
+                print(f"\nUpdated {recipe_conversation.id}'s messages to {recipe_conversation.messages}")
+                return recipe_conversation_id
+        return None
+
+    def get_recipe_conversation_list(self, username):
+        conversation_list = []
+        with Session(self.engine) as session:
+            statement = select(RecipeConversation).where(RecipeConversation.username == username)
+            results = session.exec(statement).all()
+            for recipe_conversation in results:
+                print(f"{recipe_conversation.id}: {recipe_conversation.title} ")
+                conversation_list.append({"id": recipe_conversation.id, "title": recipe_conversation.title})
+        return conversation_list
+
+if __name__ == "__main__":
+    relational_database = RelationalDatabase()
+    new_messages_payload = Messages(messages=[])
+    new_messages_payload.messages.append(TextMessage(frm="ai", mtype="text", content=TextContent(text="Hello World")))
+    relational_database.add_recipe_conversation(username="guest12345", recipe_conversation_id=3, new_messages=new_messages_payload)

@@ -23,13 +23,16 @@ class IngredientMessage(SQLModel):
     mtype: Literal["ingredient"] = "ingredient"
     content: IngredientContent = Field(default=None)
 
-class StringMessage(SQLModel):
+class TextContent(SQLModel):
+    text: str = Field(default="")
+
+class TextMessage(SQLModel):
     frm: str = Field(default="")
-    mtype: Literal["string"] = "string"
-    content: str = Field(default="")
+    mtype: Literal["text"] = "text"
+    content: TextContent = Field(default=None)
 
 Message = Annotated[
-    Union[RecipeMessage, IngredientMessage, StringMessage],
+    Union[RecipeMessage, IngredientMessage, TextMessage],
     Field(discriminator="mtype")
 ]
 
@@ -44,3 +47,11 @@ class Transcript(SQLModel):
     video_id: Optional[str] = Field(default="")
     language: Optional[str] = Field(default="")
     timestamp_texts: list[TimestampText] = Field(default=[], sa_column=Column(JSON))
+
+class RecipeConversationInfo(SQLModel):
+    id: int = Field(default=0)
+    title: str = Field(default="")
+
+class RecipeConversationList(SQLModel):
+    username: str = Field(default="")
+    recipe_conversations: list[RecipeConversationInfo] = Field(default=[])

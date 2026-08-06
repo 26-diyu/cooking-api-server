@@ -16,13 +16,13 @@ class RecipeGenerator:
                 return word
         return None
 
-    def generate_recipe(self, username, payload:Messages) -> Messages:
+    def generate_recipe(self, username:str, recipe_conversation_id:int, payload:Messages) -> Messages:
         video_url = None
         response_payload = Messages(messages=[])
-        if payload.messages[-1].mtype == 'string':
-            video_url = self.extract_video_url(payload.messages[-1].content)
+        if payload.messages[-1].mtype == 'text':
+            video_url = self.extract_video_url(payload.messages[-1].content.text)
         if video_url is None:
-            new_message = Message(mtype='string', content="No valid YouTube URL found")
+            new_message = Message(mtype='text', content="No valid YouTube URL found")
             response_payload.messages.append(new_message)
             self.relational_database.insert_recipe(username, response_payload)
             return response_payload
@@ -42,7 +42,7 @@ class RecipeGenerator:
         print("recipe_message:", recipe_message)
         response_payload.messages.append(recipe_message)
         print("response_payload:", response_payload)
-        recipe_conversation_id = self.relational_database.insert_recipe_conversation(username, response_payload)
+        recipe_conversation_id = self.relational_database.add_recipe_conversation(username, recipe_conversation_id, response_payload)
         print("recipe_conversation_id:", recipe_conversation_id)
         self.youtube_util.download_key_frames(recipe_content, video_url)
         return response_payload
