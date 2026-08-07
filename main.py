@@ -148,6 +148,9 @@ def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, 
         )
     print("messages:", messages)
     recipe_generator = RecipeGenerator()
+    print("adding messages to the recipe conversation ...")
+    recipe_conversation_id = relational_database.add_recipe_conversation(cookies.username, recipe_conversation_id,messages)
+    print("added messages to the recipe conversation id:", recipe_conversation_id)
     response_messages = recipe_generator.generate_recipe(cookies.username, recipe_conversation_id, messages)
     return response_messages
 

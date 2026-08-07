@@ -16,11 +16,11 @@ class RecipeGenerator:
                 return word
         return None
 
-    def generate_recipe(self, username:str, recipe_conversation_id:int, payload:Messages) -> Messages:
+    def generate_recipe(self, username:str, recipe_conversation_id:int, request_payload:Messages) -> Messages:
         video_url = None
         response_payload = Messages(messages=[])
-        if payload.messages[-1].mtype == 'text':
-            video_url = self.extract_video_url(payload.messages[-1].content.text)
+        if request_payload.messages[-1].mtype == 'text':
+            video_url = self.extract_video_url(request_payload.messages[-1].content.text)
         if video_url is None:
             new_message = Message(mtype='text', content="No valid YouTube URL found")
             response_payload.messages.append(new_message)

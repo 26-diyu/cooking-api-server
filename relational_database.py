@@ -113,7 +113,7 @@ class RelationalDatabase:
             for conversation in results:
                 print(f"{conversation.id}: {conversation.messages}")
                 return conversation.messages
-        return Messages(messages=[])
+        return Messages(messages=[]).model_dump()
 
     def add_recipe_conversation(self, username:str, recipe_conversation_id:int, new_messages:Messages):
         messages = self.get_recipe_conversation_messages(username, recipe_conversation_id)
@@ -148,5 +148,5 @@ class RelationalDatabase:
 if __name__ == "__main__":
     relational_database = RelationalDatabase()
     new_messages_payload = Messages(messages=[])
-    new_messages_payload.messages.append(TextMessage(frm="ai", mtype="text", content=TextContent(text="Hello World")))
+    new_messages_payload.messages.append(TextMessage(frm="ai", mtype="text", content=TextContent(text="Hello World 2151")))
     relational_database.add_recipe_conversation(username="guest12345", recipe_conversation_id=3, new_messages=new_messages_payload)

@@ -52,6 +52,10 @@ class YouTubeUtil:
 
         for key_step in recipe_content.steps:
             timestamp = key_step.timestamp
+            filename = f"{output_dir}/frame_at_{timestamp}s.jpg"
+            if os.path.exists(filename):
+                print("File already exists. Skipping download.")
+                continue
             # Calculate the frame number based on timestamp and FPS
             frame_number = int(timestamp * fps)
 
@@ -62,7 +66,6 @@ class YouTubeUtil:
             success, frame = cap.read()
 
             if success:
-                filename = f"{output_dir}/frame_at_{timestamp}s.jpg"
                 cv2.imwrite(filename, frame)
                 print(f"Successfully saved: {filename}")
             else:
