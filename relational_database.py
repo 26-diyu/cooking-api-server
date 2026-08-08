@@ -115,6 +115,17 @@ class RelationalDatabase:
                 return conversation.messages
         return Messages(messages=[]).model_dump()
 
+    def get_recipe_conversation_title(self, username:str, recipe_conversation_id:int):
+        with Session(self.engine) as session:
+            statement = select(RecipeConversation).where(
+                                    RecipeConversation.username == username,
+                                                RecipeConversation.id == recipe_conversation_id)
+            results = session.exec(statement).all()
+            for conversation in results:
+                print(f"{conversation.id}: {conversation.title}")
+                return conversation.title
+        return "Recipe Conversation"
+
     def add_recipe_conversation(self, username:str, recipe_conversation_id:int, new_messages:Messages):
         messages = self.get_recipe_conversation_messages(username, recipe_conversation_id)
         all_messages = messages
@@ -132,6 +143,22 @@ class RelationalDatabase:
                 session.commit()
                 session.refresh(recipe_conversation)
                 print(f"\nUpdated {recipe_conversation.id}'s messages to {recipe_conversation.messages}")
+                return recipe_conversation_id
+        return None
+
+    def update_recipe_conversation_title(self, username:str, recipe_conversation_id:int, title:str):
+        with Session(self.engine) as session:
+            statement = select(RecipeConversation).where(
+                RecipeConversation.username == username,
+                RecipeConversation.id == recipe_conversation_id
+            )
+            recipe_conversation = session.exec(statement).first()
+            if recipe_conversation:
+                recipe_conversation.title = title
+                session.add(recipe_conversation)
+                session.commit()
+                session.refresh(recipe_conversation)
+                print(f"\nUpdated {recipe_conversation.id}'s title to {recipe_conversation.title}")
                 return recipe_conversation_id
         return None
 

@@ -1,3 +1,5 @@
+import traceback
+
 from data_model import Transcript, RecipeContent, RecipeStep
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -70,6 +72,41 @@ class RecipeLLM:
             except ValueError:
                 print(f"Skipping invalid timestamp: {timestamp_description}")
         return recipe_content
+
+    def generate_title(self, transcript) -> str:
+        print("Generating title ...")
+        system_prompt = """
+                You are an expert culinary assistant. Your goal is to parse a raw video transcript and come up with the definition or the title for the recipe.
+                Follow these strict guidelines:
+                1. LENGTH OF THE TITLE: MAXIMUM 4 WORDS UPTO 50 characters
+                ### INSTRUCTIONS FOR YOUR OUTPUT:
+                You must respond ONLY with a valid JSON object. Do not include any conversational filler, markdown formatting (like ```json), or text outside the JSON object. 
+
+                The JSON structure must match this exactly:
+                {{
+                  "title": "The title of the recipe up to 4 words."
+                }}
+                """
+        # 2. Define the prompt structure
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("user", "Here is the raw transcript to analyze:\n\n{transcript}")
+        ])
+        try:
+            llm = ChatOllama(model="llama3.2", temperature=0)
+            # Chain them together
+            chain = prompt | llm | JsonOutputParser()
+            transcript_text=""
+            for timestamp_text in transcript["timestamp_texts"]:
+                transcript_text += timestamp_text["text"] + "\n"
+            print("transcript text: ", transcript_text)
+            response = chain.invoke({"transcript": transcript_text})
+            print("response:", response)
+            return response["title"]
+        except:
+            print("Something went wrong while generating the title")
+            traceback.print_exc()
+            return ""
 
 if __name__ == "__main__":
     video_id = "5de_BWIBnGk"

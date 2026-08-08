@@ -1,5 +1,5 @@
 from data_model import Messages, Message, RecipeMessage, TextMessage, TextContent
-from relational_database import RelationalDatabase
+from relational_database import RelationalDatabase, RecipeConversation
 from youtube_util import YouTubeUtil
 from recipe_language_model import RecipeLLM
 
@@ -16,7 +16,7 @@ class RecipeGenerator:
                 return word
         return None
 
-    def generate_recipe(self, username:str, recipe_conversation_id:int, request_payload:Messages) -> Messages:
+    def generate_recipe(self, username:str, recipe_conversation_id:int, request_payload:Messages) -> RecipeConversation:
         video_url = None
         response_payload = Messages(messages=[])
         if request_payload.messages[-1].mtype == 'text':
@@ -25,7 +25,8 @@ class RecipeGenerator:
             new_message = Message(mtype='text', content="No valid YouTube URL found")
             response_payload.messages.append(new_message)
             self.relational_database.insert_recipe(username, response_payload)
-            return response_payload
+            recipe_conversation = RecipeConversation(id=recipe_conversation_id, messages=response_payload)
+            return recipe_conversation
         video_id = video_url.split("v=")[-1]
         transcript = self.relational_database.get_transcript(video_id=video_id)
         if transcript is None:
@@ -41,11 +42,20 @@ class RecipeGenerator:
         recipe_message = RecipeMessage(frm="ai", content=recipe_content)
         print("recipe_message:", recipe_message)
         response_payload.messages.append(recipe_message)
-        ingredient_prompt_message = TextMessage(frm="ai", content=TextContent(text="Would you like to list the ingredients for the recipe ?"))
+        ingredient_prompt_message = TextMessage(frm="ai",
+                                                content=TextContent(text="Would you like to list the ingredients for the recipe ?"))
         response_payload.messages.append(ingredient_prompt_message)
         print("response_payload:", response_payload)
         recipe_conversation_id = self.relational_database.add_recipe_conversation(username, recipe_conversation_id, response_payload)
         print("recipe_conversation_id:", recipe_conversation_id)
         self.youtube_util.download_key_frames(recipe_content, video_url)
-        return response_payload
+        title = self.recipe_llm.generate_title(transcript)
+        if title:
+            self.relational_database.update_recipe_conversation_title(username, recipe_conversation_id, title)
+            recipe_conversation = RecipeConversation(id=recipe_conversation_id, title=title,
+                                                     messages=response_payload)
+        else:
+            recipe_conversation = RecipeConversation(id=recipe_conversation_id,
+                                                     messages=response_payload)
+        return recipe_conversation
 

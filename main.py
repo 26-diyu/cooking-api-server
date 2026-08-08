@@ -138,8 +138,8 @@ def get_recipe_conversation(recipe_conversation_id: int, cookies: Annotated[Cook
                                                  messages=response_payload)
     return recipe_conversation
 
-@app.post("/api/recipe-conversation/{recipe_conversation_id}", response_model=Messages)
-def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, cookies: Annotated[Cookies, Cookie()]) -> Messages:
+@app.post("/api/recipe-conversation/{recipe_conversation_id}", response_model=RecipeConversation)
+def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, cookies: Annotated[Cookies, Cookie()]) -> RecipeConversation:
     user_session = UserSession()
     print("cookies:", cookies)
     print("cookies.session_id:", cookies.session_id)
@@ -171,14 +171,14 @@ def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, 
     print("intent classification result:", result)
     if result.intent == IntentEnum.GENERATE_RECIPE:
         recipe_generator = RecipeGenerator()
-        response_messages = recipe_generator.generate_recipe(cookies.username, recipe_conversation_id, messages)
+        recipe_conversation = recipe_generator.generate_recipe(cookies.username, recipe_conversation_id, messages)
     elif result.intent == IntentEnum.EXTRACT_INGREDIENTS:
         ingredient_extractor = IngredientExtractor()
-        response_messages = ingredient_extractor.extract_ingredients(cookies.username, recipe_conversation_id, messages)
+        recipe_conversation = ingredient_extractor.extract_ingredients(cookies.username, recipe_conversation_id, messages)
     else:
         generic_response_generator = GenericResponseGenerator()
-        response_messages = generic_response_generator.generate_response(cookies.username, recipe_conversation_id, messages)
-    return response_messages
+        recipe_conversation = generic_response_generator.generate_response(cookies.username, recipe_conversation_id, messages)
+    return recipe_conversation
 
 IMAGE_DIRECTORY = Path("./data").resolve()
 
