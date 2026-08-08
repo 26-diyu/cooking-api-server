@@ -6,9 +6,11 @@ from fastapi import FastAPI, Response, HTTPException, status, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from fastapi.responses import FileResponse
-from pyexpat.errors import messages
 
 from data_model import Messages, RecipeConversationList, TextMessage, TextContent
+from generic_response_generator import GenericResponseGenerator
+from ingredient_extractor import IngredientExtractor
+from intent_classifier import HybridIntentClassifier, IntentEnum
 from relational_database import RelationalDatabase, RecipeConversation
 from user_session import UserSession
 from recipe_generator import RecipeGenerator
@@ -23,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 relational_database = RelationalDatabase.get_instance()
+hybrid_intent_classifier = HybridIntentClassifier()
 
 class Cookies(BaseModel):
     username: str | None = None
@@ -46,7 +49,7 @@ def create_guest_session(response: Response, cookies: Annotated[Cookies, Cookie(
             message="Guest session already exists")
     session_id = str(uuid.uuid4())
     #username = f"guest{session_id[:8]}"
-    username = "guest12345"
+    username = "guest123450"
     response.set_cookie(
         key="session_id",
         value=session_id,
@@ -147,11 +150,34 @@ def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, 
             detail="Session cookies missing or expired"
         )
     print("messages:", messages)
-    recipe_generator = RecipeGenerator()
     print("adding messages to the recipe conversation ...")
     recipe_conversation_id = relational_database.add_recipe_conversation(cookies.username, recipe_conversation_id,messages)
     print("added messages to the recipe conversation id:", recipe_conversation_id)
-    response_messages = recipe_generator.generate_recipe(cookies.username, recipe_conversation_id, messages)
+    recipe_conversation = relational_database.get_recipe_conversation_messages(username=cookies.username, recipe_conversation_id=recipe_conversation_id)
+    print("recipe_conversation:", recipe_conversation)
+    last_text_messages = ""
+    count = 0
+    for i in range(len(recipe_conversation["messages"])-1, -1, -1):
+        message = recipe_conversation["messages"][i]
+        if message["mtype"] != "text":
+            break
+        last_text_messages = message["content"]["text"] + " " + last_text_messages
+        count += 1
+        if count >= 2:
+            break
+
+    print("last_text_messages:", last_text_messages)
+    result = hybrid_intent_classifier.classify(last_text_messages)
+    print("intent classification result:", result)
+    if result.intent == IntentEnum.GENERATE_RECIPE:
+        recipe_generator = RecipeGenerator()
+        response_messages = recipe_generator.generate_recipe(cookies.username, recipe_conversation_id, messages)
+    elif result.intent == IntentEnum.EXTRACT_INGREDIENTS:
+        ingredient_extractor = IngredientExtractor()
+        response_messages = ingredient_extractor.extract_ingredients(cookies.username, recipe_conversation_id, messages)
+    else:
+        generic_response_generator = GenericResponseGenerator()
+        response_messages = generic_response_generator.generate_response(cookies.username, recipe_conversation_id, messages)
     return response_messages
 
 IMAGE_DIRECTORY = Path("./data").resolve()

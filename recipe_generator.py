@@ -1,4 +1,4 @@
-from data_model import Messages, Message, RecipeMessage
+from data_model import Messages, Message, RecipeMessage, TextMessage, TextContent
 from relational_database import RelationalDatabase
 from youtube_util import YouTubeUtil
 from recipe_language_model import RecipeLLM
@@ -41,6 +41,8 @@ class RecipeGenerator:
         recipe_message = RecipeMessage(frm="ai", content=recipe_content)
         print("recipe_message:", recipe_message)
         response_payload.messages.append(recipe_message)
+        ingredient_prompt_message = TextMessage(frm="ai", content=TextContent(text="Would you like to list the ingredients for the recipe ?"))
+        response_payload.messages.append(ingredient_prompt_message)
         print("response_payload:", response_payload)
         recipe_conversation_id = self.relational_database.add_recipe_conversation(username, recipe_conversation_id, response_payload)
         print("recipe_conversation_id:", recipe_conversation_id)
