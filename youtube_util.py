@@ -37,7 +37,7 @@ class YouTubeUtil:
             info = ydl.extract_info(video_url, download=False)
             stream_url = info['url']
             video_title = info.get('description', 'video')
-            print("video_title:", video_title)
+            print("video_description:", video_title)
 
         # Open the video stream with OpenCV
         cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)

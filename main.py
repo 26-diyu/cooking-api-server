@@ -176,7 +176,7 @@ def update_recipe_conversation(recipe_conversation_id: int, request_payload: Mes
         recipe_conversation = recipe_generator.generate_recipe(cookies.username, recipe_conversation_id, messages)
     elif result.intent == IntentEnum.EXTRACT_INGREDIENTS:
         ingredient_extractor = IngredientExtractor()
-        recipe_conversation = ingredient_extractor.extract_ingredients(cookies.username, recipe_conversation_id, messages)
+        recipe_conversation = ingredient_extractor.extract_ingredients(cookies.username, recipe_conversation_id, recipe_conversation_messages)
     else:
         generic_response_generator = GenericResponseGenerator()
         recipe_conversation = generic_response_generator.generate_response(cookies.username, recipe_conversation_id, messages)

@@ -49,7 +49,7 @@ class RecipeGenerator:
         recipe_conversation_id = self.relational_database.add_recipe_conversation(username, recipe_conversation_id, response_messages)
         print("recipe_conversation_id:", recipe_conversation_id)
         self.youtube_util.download_key_frames(recipe_content, video_url)
-        title = self.recipe_llm.generate_title(transcript)
+        title = self.recipe_llm.generate_title(video_url)
         if title:
             self.relational_database.update_recipe_conversation_title(username, recipe_conversation_id, title)
             recipe_conversation = RecipeConversation(id=recipe_conversation_id, title=title,

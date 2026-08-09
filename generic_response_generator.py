@@ -6,7 +6,7 @@ class GenericResponseGenerator:
     def __init__(self):
         self.relational_database = RelationalDatabase.get_instance()
 
-    def generate_response(self, username: str, recipe_conversation_id: str, messages:Messages) -> RecipeConversation:
+    def generate_response(self, username: str, recipe_conversation_id: str, messages:list) -> RecipeConversation:
         response_payload = []
         ingredient_message = TextMessage(frm="ai", content=TextContent(text="Generic Response"))
         response_payload.append(ingredient_message)
