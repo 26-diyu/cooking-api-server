@@ -49,7 +49,7 @@ def create_guest_session(response: Response, cookies: Annotated[Cookies, Cookie(
             message="Guest session already exists")
     session_id = str(uuid.uuid4())
     #username = f"guest{session_id[:8]}"
-    username = "guest123450"
+    username = "guest123451"
     response.set_cookie(
         key="session_id",
         value=session_id,
@@ -122,10 +122,10 @@ def get_recipe_conversation(recipe_conversation_id: int, cookies: Annotated[Cook
             detail="Session cookies missing or expired"
         )
     if recipe_conversation_id == 0:
-        response_payload = Messages(messages=[])
+        response_payload = []
         initial_message = TextMessage(frm="ai",
                                       content=TextContent(text="Hi! Send me a YouTube cooking video link or click a recipe to get started."))
-        response_payload.messages.append(initial_message)
+        response_payload.append(initial_message)
         recipe_conversation_id = relational_database.insert_recipe_conversation(cookies.username, response_payload)
         recipe_conversation = RecipeConversation(username=cookies.username,
                                                  id=recipe_conversation_id,
@@ -139,7 +139,7 @@ def get_recipe_conversation(recipe_conversation_id: int, cookies: Annotated[Cook
     return recipe_conversation
 
 @app.post("/api/recipe-conversation/{recipe_conversation_id}", response_model=RecipeConversation)
-def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, cookies: Annotated[Cookies, Cookie()]) -> RecipeConversation:
+def update_recipe_conversation(recipe_conversation_id: int, request_payload: Messages, cookies: Annotated[Cookies, Cookie()]) -> RecipeConversation:
     user_session = UserSession()
     print("cookies:", cookies)
     print("cookies.session_id:", cookies.session_id)
@@ -149,16 +149,18 @@ def update_recipe_conversation(recipe_conversation_id: int, messages: Messages, 
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Session cookies missing or expired"
         )
+    messages = request_payload.messages
     print("messages:", messages)
     print("adding messages to the recipe conversation ...")
-    recipe_conversation_id = relational_database.add_recipe_conversation(cookies.username, recipe_conversation_id,messages)
+    recipe_conversation_id = relational_database.add_recipe_conversation(cookies.username, recipe_conversation_id, messages)
     print("added messages to the recipe conversation id:", recipe_conversation_id)
-    recipe_conversation = relational_database.get_recipe_conversation_messages(username=cookies.username, recipe_conversation_id=recipe_conversation_id)
-    print("recipe_conversation:", recipe_conversation)
+    recipe_conversation_messages = relational_database.get_recipe_conversation_messages(username=cookies.username, recipe_conversation_id=recipe_conversation_id)
+    print("recipe_conversation_messages:", recipe_conversation_messages)
     last_text_messages = ""
     count = 0
-    for i in range(len(recipe_conversation["messages"])-1, -1, -1):
-        message = recipe_conversation["messages"][i]
+    start = len(recipe_conversation_messages) - 1
+    for i in range(start, -1, -1):
+        message = recipe_conversation_messages[i]
         if message["mtype"] != "text":
             break
         last_text_messages = message["content"]["text"] + " " + last_text_messages

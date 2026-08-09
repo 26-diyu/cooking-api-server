@@ -31,13 +31,13 @@ class TextMessage(SQLModel):
     mtype: Literal["text"] = "text"
     content: TextContent = Field(default=None)
 
-Message = Annotated[
+MessageItem = Annotated[
     Union[RecipeMessage, IngredientMessage, TextMessage],
     Field(discriminator="mtype")
 ]
 
 class Messages(SQLModel):
-    messages: list[Message]
+    messages: list[MessageItem]
 
 class TimestampText(SQLModel):
     timestamp: Optional[float] = Field(default=0.0)

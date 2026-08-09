@@ -4,7 +4,7 @@ from typing import Optional
 from sqlmodel import Field, SQLModel, Session, create_engine, select, Column, JSON
 from urllib.parse import quote_plus
 
-from data_model import Messages, Transcript, TextMessage, TextContent
+from data_model import Messages, Transcript, TextMessage, TextContent, MessageItem
 
 
 class UserSession(SQLModel, table=True):
@@ -22,7 +22,7 @@ class RecipeConversation(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: Optional[str] = Field(default="Recipe Conversation")
     username: Optional[str] = Field(default="")
-    messages: Optional[Messages] = Field(default=None, sa_column=Column(JSON))
+    messages: Optional[list[MessageItem]] = Field(default=None, sa_type=JSON)
 
 class RelationalDatabase:
     _instance = None
@@ -91,7 +91,8 @@ class RelationalDatabase:
         return None
 
     def insert_recipe_conversation(self, username, messages):
-        recipe_conversation = RecipeConversation(username=username, messages=messages.model_dump())
+        messages_dict_list = [msg.model_dump() for msg in messages]
+        recipe_conversation = RecipeConversation(username=username, messages=messages_dict_list)
         try:
             with Session(self.engine) as session:
                 session.add(recipe_conversation)
@@ -113,7 +114,7 @@ class RelationalDatabase:
             for conversation in results:
                 print(f"{conversation.id}: {conversation.messages}")
                 return conversation.messages
-        return Messages(messages=[]).model_dump()
+        return []
 
     def get_recipe_conversation_title(self, username:str, recipe_conversation_id:int):
         with Session(self.engine) as session:
@@ -126,11 +127,11 @@ class RelationalDatabase:
                 return conversation.title
         return "Recipe Conversation"
 
-    def add_recipe_conversation(self, username:str, recipe_conversation_id:int, new_messages:Messages):
+    def add_recipe_conversation(self, username:str, recipe_conversation_id:int, new_messages:list):
         messages = self.get_recipe_conversation_messages(username, recipe_conversation_id)
         all_messages = messages
-        for message in new_messages.messages:
-            all_messages["messages"].append(message.model_dump())
+        for message in new_messages:
+            all_messages.append(message.model_dump())
         with Session(self.engine) as session:
             statement = select(RecipeConversation).where(
                             RecipeConversation.username == username,
