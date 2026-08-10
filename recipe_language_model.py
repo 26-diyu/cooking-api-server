@@ -10,7 +10,7 @@ from relational_database import RelationalDatabase
 
 class RecipeLLM:
     def __init__(self):
-        self.llm = ChatOllama(model="llama3.2", temperature=0)
+        self.llm = ChatOllama(model="llama3.2", temperature=0, keep_alive=-1)
         self.relational_database = RelationalDatabase.get_instance()
 
     def get_video_description(self, video_url) -> str:
@@ -43,7 +43,8 @@ class RecipeLLM:
         1. FOCUS ON ACTIONS: Extract steps that involve physical cooking actions (e.g., heating a pan, adding ingredients, adjusting flame, blending, plating).
         2. FILTER OUT NOISE: Ignore conversational filler, background talk, anecdotes, or repetitive instructions. 
         3. PRESERVE TIMESTAMPS: Keep the exact timestamp provided in the transcript for each step so users can reference the video.
-
+        4. LIMIT NUMBER OF OUTPUT STEPS: Limit the number of output steps below 15
+        
         ### INSTRUCTIONS FOR YOUR OUTPUT:
         You must respond ONLY with a valid JSON object. Do not include any conversational filler, markdown formatting (like ```json), or text outside the JSON object. 
 
@@ -117,12 +118,11 @@ class RecipeLLM:
         # 2. Define the prompt structure
         prompt = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
-            ("user", "Here is the raw transcript or description to analyze:\n\n{text}")
+            ("user", "Here is the raw transcript or video description to analyze:\n\n{text}")
         ])
         try:
-            llm = ChatOllama(model="llama3.2", temperature=0)
             # Chain them together
-            chain = prompt | llm | JsonOutputParser()
+            chain = prompt | self.llm | JsonOutputParser()
             response = chain.invoke({"text": text})
             print("response:", response)
             return response["title"]
@@ -160,10 +160,9 @@ class RecipeLLM:
             ("system", system_prompt),
             ("user", "Here is the text to analyze:\n\n{text}")
         ])
-        llm = ChatOllama(model="llama3.2", temperature=0)
         # Chain them together
-        chain = prompt | llm | JsonOutputParser()
-        response = chain.invoke({"text": text})
+        chain = prompt | self.llm | JsonOutputParser()
+        response = chain.invoke({"text": text[:1000]})
         print(response)
         return response["ingredients"]
 
