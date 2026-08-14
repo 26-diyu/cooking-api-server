@@ -3,6 +3,7 @@ import json
 import os
 import uuid
 import random
+import time
 from typing import Annotated
 from pydantic import BaseModel
 
@@ -230,7 +231,7 @@ async def get_jpg_image(filepath: str):
 
 # Maximum allowed concurrent image generations per request (or app-wide)
 MAX_CONCURRENCY = 4
-MAX_RETRIES = 10
+MAX_RETRIES = 20
 # Global limit across the entire FastAPI app
 GLOBAL_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENCY)
 
@@ -240,6 +241,16 @@ def _extract_frame_sync(timestamp: float, image_path: str) -> bool:
     Synchronous blocking function containing yt_dlp and OpenCV code.
     Runs inside a thread pool to avoid blocking the asyncio event loop.
     """
+    # Force FFmpeg options before opening stream
+    os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+        "timeout;5000000|"  # 5 second timeout (in microseconds)
+        "rtsp_transport;tcp|"  # Use TCP instead of UDP to prevent packet loss
+        "max_delay;5000000"
+    )
+    # Enable FFmpeg verbose debugging output in console
+    os.environ["OPENCV_LOG_LEVEL"] = "VERBOSE"
+    os.environ["OPENCV_FFMPEG_LOGLEVEL"] = "32"  # 8 = AV_LOG_FATAL / AV_LOG_ERROR
+
     video_id = image_path.split("/")[1]
     output_dir = f'data/{video_id}/key-frames'
     filename = f"{output_dir}/frame_at_{timestamp}s.jpg"
@@ -254,21 +265,24 @@ def _extract_frame_sync(timestamp: float, image_path: str) -> bool:
         'no_warnings': True
     }
     video_url = f"https://www.youtube.com/watch?v={video_id}"
-    print("Fetching video stream URL for video_url:", video_url)
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(video_url, download=False)
-        stream_url = info['url']
-        #print("stream_url:", stream_url)
-
+    print("Completed fetching video stream URL")
     cap = None
     for retry in range(1, MAX_RETRIES+1):
+        print("retry:", retry)
+        print("Fetching video stream URL for video_url:", video_url)
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            stream_url = info['url']
+            # print("stream_url:", stream_url)
         cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
         if cap.isOpened():
             break
+        # Always release failed objects before retrying to free memory/sockets
+        if cap is not None:
+            cap.release()
         # Synchronous sleep inside thread
-        import time
-        time.sleep(random.uniform(0.3*retry, 1.0*retry))
+        time.sleep(random.uniform(0.3, 1.0))
 
     if not cap or not cap.isOpened():
         print("Error: Could not open video stream.")
@@ -377,7 +391,7 @@ async def stream_batch(recipe_conversation_id: int, message_id: str, cookies: An
             event = await queue.get()
             yield event
             queue.task_done()
-
+        print("Completed a batch for extracting images.")
         # Batch completion event
         yield {
             "event": "batch_complete",
