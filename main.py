@@ -1,4 +1,8 @@
+import asyncio
+import json
+import os
 import uuid
+import random
 from typing import Annotated
 from pydantic import BaseModel
 
@@ -6,6 +10,9 @@ from fastapi import FastAPI, Response, HTTPException, status, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from fastapi.responses import FileResponse
+from sse_starlette.sse import EventSourceResponse
+import yt_dlp
+import cv2
 
 from data_model import Messages, RecipeConversationList, TextMessage, TextContent
 from generic_response_generator import GenericResponseGenerator
@@ -49,7 +56,7 @@ def create_guest_session(response: Response, cookies: Annotated[Cookies, Cookie(
             message="Guest session already exists")
     session_id = str(uuid.uuid4())
     #username = f"guest{session_id[:8]}"
-    username = "guest123451"
+    username = "guest123455"
     response.set_cookie(
         key="session_id",
         value=session_id,
@@ -220,3 +227,161 @@ async def get_jpg_image(filepath: str):
         media_type="image/jpeg",
         filename=file_path.name,
     )
+
+# Maximum allowed concurrent image generations per request (or app-wide)
+MAX_CONCURRENCY = 4
+MAX_RETRIES = 10
+# Global limit across the entire FastAPI app
+GLOBAL_SEMAPHORE = asyncio.Semaphore(MAX_CONCURRENCY)
+
+
+def _extract_frame_sync(timestamp: float, image_path: str) -> bool:
+    """
+    Synchronous blocking function containing yt_dlp and OpenCV code.
+    Runs inside a thread pool to avoid blocking the asyncio event loop.
+    """
+    video_id = image_path.split("/")[1]
+    output_dir = f'data/{video_id}/key-frames'
+    filename = f"{output_dir}/frame_at_{timestamp}s.jpg"
+    if os.path.exists(filename):
+        print("File already exists. Skipping extraction:", filename)
+        return True
+
+    print("File does not exist. Downloading...", filename)
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]/best[ext=mp4]/best',
+        'quiet': True,
+        'no_warnings': True
+    }
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    print("Fetching video stream URL for video_url:", video_url)
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(video_url, download=False)
+        stream_url = info['url']
+        #print("stream_url:", stream_url)
+
+    cap = None
+    for retry in range(1, MAX_RETRIES+1):
+        cap = cv2.VideoCapture(stream_url, cv2.CAP_FFMPEG)
+        if cap.isOpened():
+            break
+        # Synchronous sleep inside thread
+        import time
+        time.sleep(random.uniform(0.3*retry, 1.0*retry))
+
+    if not cap or not cap.isOpened():
+        print("Error: Could not open video stream.")
+        return False
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"Connected to stream. Video FPS: {fps}")
+    frame_number = int(timestamp * fps)
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+    success, frame = cap.read()
+
+    if success:
+        cv2.imwrite(filename, frame)
+        print(f"Successfully saved: {filename}")
+    else:
+        print(f"Failed to extract frame at {timestamp} seconds (Frame index: {frame_number}).")
+
+    cap.release()
+    print("Finished downloading an image.")
+    return success
+
+async def generate_single_image(
+        timestamp: float,
+        image_path: str,
+        queue: asyncio.Queue,
+        semaphore: asyncio.Semaphore
+):
+    """
+    Worker task wrapped with a Semaphore to control concurrency.
+    """
+    async with semaphore:
+        print("Started task generate_single_image for timestamp ", timestamp)
+        # 1. Start extraction update
+        await queue.put({
+            "event": "image_update",
+            "data": json.dumps({
+                "timestamp": timestamp,
+                "image_path": image_path,
+                "image_status": "extracting"
+            })
+        })
+        await asyncio.sleep(random.uniform(0.3, 1.0))
+        # 2. Run the blocking yt-dlp & cv2 extraction in a background thread
+        # This keeps the asyncio event loop unblocked!
+        success = await asyncio.to_thread(_extract_frame_sync, timestamp, image_path)
+        if success:
+            status = relational_database.update_image_status(image_path, "extracted")
+            if status:
+                print("Successfully updated image status.")
+            else:
+                print("Failed to update image status.")
+        payload = {
+            "timestamp": timestamp,
+            "image_path": image_path,
+            "image_status": "extracted" if success else "extracting"
+        }
+        await queue.put({
+            "event": "image_update",
+            "data": json.dumps(payload)
+        })
+
+@app.get("/api/generate-batch/stream-concurrent")
+async def stream_batch(recipe_conversation_id: int, message_id: str, cookies: Annotated[Cookies, Cookie()]):
+    print("cookies:", cookies)
+    print("cookies.session_id:", cookies.session_id)
+    print("cookies.username:", cookies.username)
+    #TO-DO validate the session
+    async def event_generator():
+        queue: asyncio.Queue = asyncio.Queue()
+
+        # Limit active parallel runs to 10
+        # semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
+
+        timestamp_image_paths = relational_database.get_timestamp_image_paths(cookies.username, recipe_conversation_id, message_id)
+        if timestamp_image_paths and len(timestamp_image_paths) > 0:
+            (_timestamp, image_path) = timestamp_image_paths[0]
+            video_id = image_path.split("/")[1]
+            output_dir = f'data/{video_id}/key-frames'
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+        # 1. Spawn all background tasks with the shared semaphore
+        tasks = [
+            asyncio.create_task(generate_single_image(timestamp, image_path, queue, GLOBAL_SEMAPHORE))
+            for (timestamp, image_path) in timestamp_image_paths
+        ]
+
+        # 2. Drain queue while tasks execute
+        pending_tasks = set(tasks)
+
+        while pending_tasks:
+            while not queue.empty():
+                event = await queue.get()
+                yield event
+                queue.task_done()
+
+            # Clean finished tasks
+            done_tasks = {t for t in pending_tasks if t.done()}
+            pending_tasks -= done_tasks
+
+            if pending_tasks and queue.empty():
+                await asyncio.sleep(0.05)
+
+        # 3. Final queue flush
+        while not queue.empty():
+            event = await queue.get()
+            yield event
+            queue.task_done()
+
+        # Batch completion event
+        yield {
+            "event": "batch_complete",
+            "data": json.dumps({"status": "done"})
+        }
+
+    return EventSourceResponse(event_generator())

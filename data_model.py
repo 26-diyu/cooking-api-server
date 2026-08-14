@@ -1,24 +1,33 @@
+import uuid
 from typing import Annotated, Literal, Union, Optional
 from sqlmodel import Field, SQLModel, Column, JSON
+from pydantic import computed_field
+
+class RecipeStepImage(SQLModel, table=True):
+    image_path: str = Field(primary_key=True)
+    image_status: str = Field(default="extracting")
 
 class RecipeStep(SQLModel):
     timestamp: float = Field(default=0.0)
     description: str = Field(default="")
-    image_url: str | None = None  # Optional image URL for the step
+    image_path: str = Field(default="")
+    image_status: str = Field(default="extracting")
 
 class RecipeContent(SQLModel):
-    description: str | None = None
+    description: str = Field(default="")
     steps: list[RecipeStep] = Field(default=[])
 
 class IngredientContent(SQLModel):
     ingredients: list[str] = Field(default=[])
 
 class RecipeMessage(SQLModel):
+    mid: str = Field(default=str(uuid.uuid4()))
     frm: str = Field(default="")
     mtype: Literal["recipe"] = "recipe"
     content: RecipeContent = Field(default=None)
 
 class IngredientMessage(SQLModel):
+    mid: str = Field(default=str(uuid.uuid4()))
     frm: str = Field(default="")
     mtype: Literal["ingredient"] = "ingredient"
     content: IngredientContent = Field(default=None)
@@ -27,6 +36,7 @@ class TextContent(SQLModel):
     text: str = Field(default="")
 
 class TextMessage(SQLModel):
+    mid: str = Field(default=str(uuid.uuid4()))
     frm: str = Field(default="")
     mtype: Literal["text"] = "text"
     content: TextContent = Field(default=None)

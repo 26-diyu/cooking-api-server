@@ -1,3 +1,4 @@
+import os
 import traceback
 import yt_dlp
 
@@ -10,7 +11,7 @@ from relational_database import RelationalDatabase
 
 class RecipeLLM:
     def __init__(self):
-        self.llm = ChatOllama(model="llama3.2", temperature=0, keep_alive=-1)
+        self.llm = ChatOllama(model="llama3.2", temperature=0, keep_alive="30m")
         self.relational_database = RelationalDatabase.get_instance()
 
     def get_video_description(self, video_url) -> str:
@@ -84,7 +85,13 @@ class RecipeLLM:
                     seconds = float(seconds.strip().strip('"').rstrip('s'))
                     timestamps.append(seconds)
                     print(f"seconds: {seconds}, step_description: {step_description}")
-                    recipe_step = RecipeStep(timestamp=seconds, description=step_description, image_url=f"{output_dir}/frame_at_{seconds}s.jpg")
+                    image_path = f"{output_dir}/frame_at_{seconds}s.jpg"
+                    if os.path.exists(image_path):
+                        image_status = "extracted"
+                    else:
+                        image_status = "extracting"
+                    recipe_step = RecipeStep(timestamp=seconds,
+                                             description=step_description, image_path=image_path, image_status=image_status)
                     recipe_content.steps.append(recipe_step)
             except ValueError:
                 print(f"Skipping invalid timestamp: {timestamp_description}")

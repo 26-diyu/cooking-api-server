@@ -39,6 +39,9 @@ class RecipeGenerator:
             print("transcript:", transcript)
         recipe_content = self.recipe_llm.extract_key_steps(transcript)
         print("recipe_content:", recipe_content)
+        print("inserting recipe_step_image_status ...")
+        row_count = self.relational_database.insert_recipe_step_image(recipe_content)
+        print("inserted recipe_step_image_status row count:", row_count)
         recipe_message = RecipeMessage(frm="ai", content=recipe_content)
         print("recipe_message:", recipe_message)
         response_messages.append(recipe_message)
@@ -48,7 +51,7 @@ class RecipeGenerator:
         print("response_payload:", response_messages)
         recipe_conversation_id = self.relational_database.add_recipe_conversation(username, recipe_conversation_id, response_messages)
         print("recipe_conversation_id:", recipe_conversation_id)
-        self.youtube_util.download_key_frames(recipe_content, video_url)
+        #self.youtube_util.download_key_frames(recipe_content, video_url)
         title = self.recipe_llm.generate_title(video_url)
         if title:
             self.relational_database.update_recipe_conversation_title(username, recipe_conversation_id, title)

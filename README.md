@@ -7,3 +7,4 @@ For Ollama response time improvement, on Windows PowerShell
 [System.Environment]::SetEnvironmentVariable('OLLAMA_FLASH_ATTENTION', '1', 'User')
 [System.Environment]::SetEnvironmentVariable('OLLAMA_KV_CACHE_TYPE', 'q8_0', 'User')
 [System.Environment]::SetEnvironmentVariable('NUM_BATCH', '2048', 'User')
+[System.Environment]::SetEnvironmentVariable('CUDA_VISIBLE_DEVICES', '0', 'User')

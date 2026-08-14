@@ -4,7 +4,7 @@ from typing import Optional
 from sqlmodel import Field, SQLModel, Session, create_engine, select, Column, JSON
 from urllib.parse import quote_plus
 
-from data_model import Messages, Transcript, TextMessage, TextContent, MessageItem
+from data_model import Messages, Transcript, TextMessage, TextContent, MessageItem, RecipeContent, RecipeStepImage
 
 
 class UserSession(SQLModel, table=True):
@@ -105,6 +105,16 @@ class RelationalDatabase:
             print("Failed to insert recipe conversation:", e)
             return -1
 
+    def get_image_path_status(self, image_paths:list) -> dict:
+        image_path_status = {}
+        with Session(self.engine) as session:
+            statement = select(RecipeStepImage).where(RecipeStepImage.image_path.in_(image_paths))
+            results = session.exec(statement).all()
+            for recipe_step_image in results:
+                print(f"{recipe_step_image.image_path}: {recipe_step_image.image_status}")
+                image_path_status[recipe_step_image.image_path] = recipe_step_image.image_status
+        return image_path_status
+
     def get_recipe_conversation_messages(self, username:str, recipe_conversation_id:int):
         with Session(self.engine) as session:
             statement = select(RecipeConversation).where(
@@ -113,6 +123,17 @@ class RelationalDatabase:
             results = session.exec(statement).all()
             for conversation in results:
                 print(f"{conversation.id}: {conversation.messages}")
+                for message in conversation.messages:
+                    if message["mtype"] == "recipe":
+                        print("Before updating message[\"steps\"]:", message["content"]["steps"])
+                        image_paths = []
+                        for step in message["content"]["steps"]:
+                            image_paths.append(step["image_path"])
+                        image_path_status = self.get_image_path_status(image_paths)
+                        for step in message["content"]["steps"]:
+                            if image_path_status.get(step["image_path"]):
+                                step["image_status"] = image_path_status.get(step["image_path"])
+                        print("After updating message[\"steps\"]:", message["content"]["steps"])
                 return conversation.messages
         return []
 
@@ -172,6 +193,63 @@ class RelationalDatabase:
                 print(f"{recipe_conversation.id}: {recipe_conversation.title} ")
                 conversation_list.append({"id": recipe_conversation.id, "title": recipe_conversation.title})
         return conversation_list
+
+    def get_timestamp_image_paths(self, username, recipe_conversation_id, message_id, image_status="extracting"):
+        timestamp_image_paths = []
+        with (Session(self.engine) as session):
+            statement = select(RecipeConversation).where(
+                RecipeConversation.username == username,
+                RecipeConversation.id == recipe_conversation_id
+            )
+            recipe_conversation = session.exec(statement).first()
+            if recipe_conversation and recipe_conversation.messages:
+                for message in recipe_conversation.messages:
+                    if message["mid"] == message_id:
+                        image_paths = []
+                        for step in message["content"]["steps"]:
+                            image_paths.append(step["image_path"])
+                        image_path_status = self.get_image_path_status(image_paths)
+                        print("image_path_status:", image_path_status)
+                        for step in message["content"]["steps"]:
+                            print("step[image_path]:", step["image_path"])
+                            if image_path_status.get(step["image_path"]) is None or image_path_status[step["image_path"]] == image_status:
+                                timestamp_image_paths.append([step["timestamp"], step["image_path"]])
+        return timestamp_image_paths
+
+    def insert_recipe_step_image(self, recipe_content : RecipeContent) -> int:
+        try:
+            with Session(self.engine) as session:
+                row_count = 0
+                image_paths = []
+                for step in recipe_content.steps:
+                    image_paths.append(step.image_path)
+                image_path_status = self.get_image_path_status(image_paths)
+                for step in recipe_content.steps:
+                    if image_path_status.get(step.image_path) is None:
+                        recipe_step_image = RecipeStepImage(image_path=step.image_path, image_status=step.image_status)
+                        session.add(recipe_step_image)
+                        row_count += 1
+                session.commit()
+                print(f"Successfully inserted {row_count} recipe_step_image")
+                return row_count
+        except Exception as e:
+            print("Failed to insert recipe_step_image:", e)
+            return -1
+
+    def update_image_status(self, image_path, image_status) -> bool:
+        with Session(self.engine) as session:
+            statement = select(RecipeStepImage).where(
+                RecipeStepImage.image_path == image_path
+            )
+            recipe_step_image = session.exec(statement).first()
+            if recipe_step_image:
+                recipe_step_image.image_status = image_status
+                session.add(recipe_step_image)
+                session.commit()
+                session.refresh(recipe_step_image)
+                print(f"\nUpdated {recipe_step_image.image_path}'s status to {recipe_step_image.image_status}")
+                return True
+        return False
 
 if __name__ == "__main__":
     relational_database = RelationalDatabase()

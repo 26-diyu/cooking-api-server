@@ -35,8 +35,8 @@ class LLMKeySteps:
 
                 print("--- SELECT Results ---")
                 for row in rows:
-                    if row['transcript']['video_id'] != "JkYwSddTdew":
-                        continue
+                    #if row['transcript']['video_id'] != "JkYwSddTdew":
+                    #    continue
                     print(f"ID: {row['id']} | VideoID: {row['transcript']['video_id']} | Transcript: {row['transcript']}")
                     transcript = self.relational_database.get_transcript(video_id=row['transcript']['video_id'])
                     print(transcript)
