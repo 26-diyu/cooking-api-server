@@ -1,4 +1,5 @@
 import os
+import time
 import traceback
 import yt_dlp
 
@@ -66,7 +67,10 @@ class RecipeLLM:
         counter = 0
         while response is None and counter < 3:
             # Run the chain
+            start_time = time.time()
             response = chain.invoke({"transcript": transcript_text})
+            end_time = time.time()
+            print("Time taken to generate key steps (seconds) ", (end_time - start_time))
             counter += 1
 
         if response is None:
